@@ -119,6 +119,20 @@ src/
     └── types.ts             # Shared type definitions
 ```
 ---
+本项目`不具备`以下能力：
+- 不具备【非法获取计算机数据】的功能
+- 不具备【非法修改计算机数据】的功能
+- 不具备【非法控制计算机系统】的功能
+- 不具备【破坏计算机系统】的功能
+- 不具备【内置AI模型】 （AI模型由用户自己配置，请按照《生成式人工智能服务管理暂行办法》合规使用大模型）
+  
+**务必不要使用本工具进行任何违反中国法律的行为！！！**
+
+**务必不要使用本工具进行任何违反中国法律的行为！！！**
+
+**务必不要使用本工具进行任何违反中国法律的行为！！！**
+
+---
 
 Finally，Thanks to everyone on LinuxDo for their support! Welcome to join https://linux.do/ for all kinds of technical exchanges, cutting-edge AI information, and AI experience sharing, all on Linuxdo!
 
