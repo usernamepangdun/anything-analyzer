@@ -118,9 +118,11 @@ export interface BrowserTab {
 // ---- LLM Provider Config ----
 
 export type LLMProviderType = "openai" | "anthropic" | "custom";
+export type OpenAIApiType = "completions" | "responses";
 
 export interface LLMProviderConfig {
   name: LLMProviderType;
+  apiType?: OpenAIApiType;
   baseUrl: string;
   apiKey: string;
   model: string;
