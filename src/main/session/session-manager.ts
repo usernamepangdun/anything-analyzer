@@ -127,6 +127,8 @@ export class SessionManager {
 
   /**
    * Attach CDP, JS injector, and storage collector to a single tab.
+   * If CDP attachment fails (e.g. blank page, debugger conflict), the tab is
+   * silently skipped — proxy-based capture still works without CDP.
    */
   private async attachCaptureToTab(
     tabId: string,
@@ -138,8 +140,15 @@ export class SessionManager {
     const injector = new JsInjector();
     const storage = new StorageCollector();
 
-    // Start CDP manager
-    await cdp.start(webContents);
+    // Start CDP manager — non-fatal if it fails
+    try {
+      await cdp.start(webContents);
+    } catch (err) {
+      console.warn(`[SessionManager] CDP attach failed for tab ${tabId}, skipping browser capture:`, (err as Error).message);
+      cdp.detach();
+      return;
+    }
+
     cdp.on("response-captured", (data) => {
       this.captureEngine.handleResponseCaptured(data);
     });

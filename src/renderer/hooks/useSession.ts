@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
-import type { Session, SessionStatus } from '../../shared/types'
+import type { Session } from '../../shared/types'
 
 export interface UseSessionReturn {
   sessions: Session[]
@@ -68,52 +68,39 @@ export function useSession(): UseSessionReturn {
     [currentSessionId]
   )
 
-  // Helper to update the status of the current session locally
-  const updateCurrentStatus = useCallback(
-    (status: SessionStatus) => {
-      setSessions((prev) =>
-        prev.map((s) =>
-          s.id === currentSessionId
-            ? { ...s, status, stopped_at: status === 'stopped' ? Date.now() : s.stopped_at }
-            : s
-        )
-      )
-    },
-    [currentSessionId]
-  )
-
   const startCapture = useCallback(async () => {
     if (!currentSessionId) return
     try {
       await window.electronAPI.startCapture(currentSessionId)
-      updateCurrentStatus('running')
+      // Reload from DB to ensure UI stays in sync (avoids stale closure issues)
+      await loadSessions()
     } catch (err) {
       console.error('Failed to start capture:', err)
       throw err
     }
-  }, [currentSessionId, updateCurrentStatus])
+  }, [currentSessionId, loadSessions])
 
   const pauseCapture = useCallback(async () => {
     if (!currentSessionId) return
     try {
       await window.electronAPI.pauseCapture(currentSessionId)
-      updateCurrentStatus('paused')
+      await loadSessions()
     } catch (err) {
       console.error('Failed to pause capture:', err)
       throw err
     }
-  }, [currentSessionId, updateCurrentStatus])
+  }, [currentSessionId, loadSessions])
 
   const stopCapture = useCallback(async () => {
     if (!currentSessionId) return
     try {
       await window.electronAPI.stopCapture(currentSessionId)
-      updateCurrentStatus('stopped')
+      await loadSessions()
     } catch (err) {
       console.error('Failed to stop capture:', err)
       throw err
     }
-  }, [currentSessionId, updateCurrentStatus])
+  }, [currentSessionId, loadSessions])
 
   // Load sessions on mount
   useEffect(() => {

@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
-import { ConfigProvider, Layout, Tabs, theme, Typography, message } from 'antd'
-import { SettingOutlined } from '@ant-design/icons'
+import { ConfigProvider, Layout, Tabs, theme, Typography, message, Button, Popconfirm, Space } from 'antd'
+import { SettingOutlined, ExportOutlined, DeleteOutlined, ClearOutlined } from '@ant-design/icons'
 import zhCN from 'antd/locale/zh_CN'
 
 import SessionList from './components/SessionList'
@@ -66,7 +66,7 @@ function App(): React.ReactElement {
   /** Whether we are currently dragging the resize handle */
   const isDragging = useRef(false)
 
-  const { requests, hooks, snapshots, reports, isAnalyzing, analysisError, streamingContent, startAnalysis, chatHistory, isChatting, chatError, sendFollowUp } = useCapture(currentSessionId)
+  const { requests, hooks, snapshots, reports, isAnalyzing, analysisError, streamingContent, startAnalysis, chatHistory, isChatting, chatError, sendFollowUp, clearCaptureData } = useCapture(currentSessionId)
 
   const selectedRequest = requests.find(r => r.id === selectedRequestId) || null
 
@@ -199,6 +199,20 @@ function App(): React.ReactElement {
       message.error('清除浏览器环境失败')
     }
   }, [])
+
+  // Clear capture data for re-analysis
+  const handleClearData = useCallback(async () => {
+    if (!currentSessionId) return
+    try {
+      await clearCaptureData(currentSessionId)
+      setSelectedRequestId(null)
+      setSelectedSeqs([])
+      message.success('抓包数据已清除')
+    } catch (err) {
+      console.error('Clear data failed:', err)
+      message.error('清除数据失败')
+    }
+  }, [currentSessionId, clearCaptureData])
 
   const handleFollowUp = useCallback(async (message: string) => {
     if (!currentSessionId) return
@@ -342,8 +356,6 @@ function App(): React.ReactElement {
             hasRequests={requests.length > 0}
             isAnalyzing={isAnalyzing}
             selectedSeqCount={selectedSeqs.length}
-            onExport={handleExport}
-            onClearEnv={handleClearEnv}
           />
 
           {/* Data panel area with tabs */}
@@ -354,6 +366,52 @@ function App(): React.ReactElement {
                 onChange={setActiveTab}
                 size="small"
                 style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: '0 12px' }}
+                tabBarExtraContent={
+                  <Space size={4}>
+                    <Button
+                      size="small"
+                      icon={<ExportOutlined />}
+                      disabled={!((currentSession.status === 'stopped') && requests.length > 0) || isAnalyzing}
+                      onClick={handleExport}
+                    >
+                      导出
+                    </Button>
+                    <Popconfirm
+                      title="清除抓包数据"
+                      description="将清除当前会话的所有请求、Hook、存储快照和分析报告数据，不可恢复。"
+                      onConfirm={handleClearData}
+                      okText="确认清除"
+                      okType="danger"
+                      cancelText="取消"
+                      placement="bottomRight"
+                    >
+                      <Button
+                        size="small"
+                        danger
+                        icon={<DeleteOutlined />}
+                        disabled={!((currentSession.status === 'stopped') && requests.length > 0) || isAnalyzing}
+                      >
+                        清除数据
+                      </Button>
+                    </Popconfirm>
+                    <Popconfirm
+                      title="清除浏览器环境"
+                      description="将清除所有 Cookies、LocalStorage、SessionStorage 和缓存数据，当前登录态会丢失。"
+                      onConfirm={handleClearEnv}
+                      okText="确认清除"
+                      okType="danger"
+                      cancelText="取消"
+                      placement="bottomRight"
+                    >
+                      <Button
+                        size="small"
+                        icon={<ClearOutlined />}
+                      >
+                        清除环境
+                      </Button>
+                    </Popconfirm>
+                  </Space>
+                }
                 items={[
                   {
                     key: 'requests',

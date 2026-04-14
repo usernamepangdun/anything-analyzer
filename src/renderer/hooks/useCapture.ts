@@ -25,6 +25,7 @@ interface UseCaptureState {
 interface UseCaptureReturn extends UseCaptureState {
   loadData: (sessionId: string) => Promise<void>;
   clearData: () => void;
+  clearCaptureData: (sessionId: string) => Promise<void>;
   selectRequest: (request: CapturedRequest | null) => void;
   startAnalysis: (sessionId: string, purpose?: string, selectedSeqs?: number[]) => Promise<void>;
   sendFollowUp: (sessionId: string, message: string) => Promise<void>;
@@ -55,6 +56,12 @@ export function useCapture(sessionId: string | null): UseCaptureReturn {
 
   // Clear all data
   const clearData = useCallback(() => {
+    setState(INITIAL_STATE);
+  }, []);
+
+  // Clear all capture data from DB and reset local state
+  const clearCaptureData = useCallback(async (sid: string) => {
+    await window.electronAPI.clearCaptureData(sid);
     setState(INITIAL_STATE);
   }, []);
 
@@ -219,6 +226,7 @@ export function useCapture(sessionId: string | null): UseCaptureReturn {
     ...state,
     loadData,
     clearData,
+    clearCaptureData,
     selectRequest,
     startAnalysis,
     sendFollowUp,

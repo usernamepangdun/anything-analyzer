@@ -140,15 +140,18 @@ export class DataAssembler {
 
       // 检查响应中的 Set-Cookie
       if (req.responseHeaders) {
-        const setCookie = req.responseHeaders['set-cookie'] || req.responseHeaders['Set-Cookie']
-        if (setCookie) {
-          const cookieName = setCookie.split('=')[0]
-          authChain.push({
-            source: `${req.method} ${new URL(req.url).pathname} Set-Cookie`,
-            credentialType: 'Session Cookie',
-            credential: `${cookieName}=...`,
-            consumers: []
-          })
+        const rawSetCookie = req.responseHeaders['set-cookie'] || req.responseHeaders['Set-Cookie']
+        if (rawSetCookie) {
+          const cookies = Array.isArray(rawSetCookie) ? rawSetCookie : [rawSetCookie]
+          for (const cookie of cookies) {
+            const cookieName = String(cookie).split('=')[0]
+            authChain.push({
+              source: `${req.method} ${new URL(req.url).pathname} Set-Cookie`,
+              credentialType: 'Session Cookie',
+              credential: `${cookieName}=...`,
+              consumers: []
+            })
+          }
         }
       }
     }

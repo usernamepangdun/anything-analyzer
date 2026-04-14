@@ -33,6 +33,11 @@ export class CdpManager extends EventEmitter {
   async start(webContents: WebContents): Promise<void> {
     this.webContents = webContents
 
+    // Detach if already attached (e.g. leftover from a previous session)
+    if (webContents.debugger.isAttached()) {
+      try { webContents.debugger.detach() } catch { /* ignore */ }
+    }
+
     try {
       webContents.debugger.attach('1.3')
     } catch (err) {

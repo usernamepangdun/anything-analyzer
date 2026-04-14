@@ -44,6 +44,7 @@ export interface CapturedRequest {
   // 流式通信标记
   is_streaming: boolean; // 用于识别 SSE（Server-Sent Events）响应，Content-Type 为 text/event-stream 时为 true
   is_websocket: boolean; // 用于标记 WebSocket 升级请求，Upgrade 头为 websocket 时为 true
+  source?: 'cdp' | 'proxy';
 }
 
 // ---- JS Hook Record ----
@@ -229,6 +230,24 @@ export interface MCPServerSettings {
   port: number;
 }
 
+// ---- MITM Proxy ----
+
+export interface MitmProxyConfig {
+  enabled: boolean;
+  port: number;
+  caInstalled: boolean;
+  systemProxy: boolean;
+}
+
+export interface MitmProxyStatus {
+  running: boolean;
+  port: number | null;
+  caInitialized: boolean;
+  caInstalled: boolean;
+  caCertPath: string | null;
+  systemProxyEnabled: boolean;
+}
+
 // ---- Filtered Request ----
 
 export interface FilteredRequest {
@@ -311,6 +330,7 @@ export const IPC_CHANNELS = {
   DATA_REQUESTS: "data:requests",
   DATA_HOOKS: "data:hooks",
   DATA_STORAGE: "data:storage",
+  DATA_CLEAR: "data:clear",
   DATA_EXPORT_REQUESTS: "data:exportRequests",
 
   // AI
@@ -363,6 +383,17 @@ export const IPC_CHANNELS = {
   MCP_SERVER_GET_CONFIG: "mcp-server:getConfig",
   MCP_SERVER_SAVE_CONFIG: "mcp-server:saveConfig",
   MCP_SERVER_STATUS: "mcp-server:status",
+
+  // MITM Proxy
+  MITM_GET_CONFIG: "mitm-proxy:getConfig",
+  MITM_SAVE_CONFIG: "mitm-proxy:saveConfig",
+  MITM_STATUS: "mitm-proxy:status",
+  MITM_INSTALL_CA: "mitm-proxy:installCA",
+  MITM_UNINSTALL_CA: "mitm-proxy:uninstallCA",
+  MITM_EXPORT_CA: "mitm-proxy:exportCA",
+  MITM_REGENERATE_CA: "mitm-proxy:regenerateCA",
+  MITM_ENABLE_SYSTEM_PROXY: "mitm-proxy:enableSystemProxy",
+  MITM_DISABLE_SYSTEM_PROXY: "mitm-proxy:disableSystemProxy",
 } as const;
 
 // ---- Electron API (exposed via contextBridge) ----
@@ -387,6 +418,7 @@ export interface ElectronAPI {
   getHooks: (sessionId: string) => Promise<JsHookRecord[]>;
   getStorage: (sessionId: string) => Promise<StorageSnapshot[]>;
   getReports: (sessionId: string) => Promise<AnalysisReport[]>;
+  clearCaptureData: (sessionId: string) => Promise<void>;
 
   startAnalysis: (sessionId: string, purpose?: string, selectedSeqs?: number[]) => Promise<AnalysisReport>;
   sendFollowUp: (sessionId: string, history: ChatMessage[], userMessage: string) => Promise<string>;
@@ -452,6 +484,17 @@ export interface ElectronAPI {
   getMCPServerConfig: () => Promise<MCPServerSettings>;
   saveMCPServerConfig: (config: MCPServerSettings) => Promise<void>;
   getMCPServerStatus: () => Promise<{ running: boolean; port: number | null }>;
+
+  // MITM Proxy
+  getMitmProxyConfig: () => Promise<MitmProxyConfig>;
+  saveMitmProxyConfig: (config: MitmProxyConfig) => Promise<void>;
+  getMitmProxyStatus: () => Promise<MitmProxyStatus>;
+  installMitmCA: () => Promise<{ success: boolean; error?: string }>;
+  uninstallMitmCA: () => Promise<{ success: boolean; error?: string }>;
+  exportMitmCA: () => Promise<boolean>;
+  regenerateMitmCA: () => Promise<void>;
+  enableMitmSystemProxy: () => Promise<{ success: boolean; error?: string }>;
+  disableMitmSystemProxy: () => Promise<{ success: boolean; error?: string }>;
 }
 
 declare global {

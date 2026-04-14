@@ -1,10 +1,15 @@
 import { ipcMain, dialog, app, session } from "electron";
-import type { LLMProviderConfig, MCPServerConfig, MCPServerSettings, ProxyConfig, PromptTemplate } from "@shared/types";
+import type { LLMProviderConfig, MCPServerConfig, MCPServerSettings, MitmProxyConfig, ProxyConfig, PromptTemplate } from "@shared/types";
 import type { SessionManager } from "./session/session-manager";
 import type { AiAnalyzer } from "./ai/ai-analyzer";
 import type { WindowManager } from "./window";
 import type { Updater } from "./updater";
 import type { MCPClientManager } from "./mcp/mcp-manager";
+import type { MitmProxyServer } from "./proxy/mitm-proxy-server";
+import type { CaManager } from "./proxy/ca-manager";
+import { CertInstaller } from "./proxy/cert-installer";
+import { SystemProxy } from "./proxy/system-proxy";
+import { loadMitmProxyConfig, saveMitmProxyConfig } from "./proxy/mitm-proxy-config";
 import {
   loadTemplates,
   saveTemplate,
@@ -36,6 +41,8 @@ export function registerIpcHandlers(deps: {
   windowManager: WindowManager;
   updater: Updater;
   mcpManager: MCPClientManager;
+  mitmProxy: MitmProxyServer;
+  caManager: CaManager;
   sessionsRepo: SessionsRepo;
   requestsRepo: RequestsRepo;
   jsHooksRepo: JsHooksRepo;
@@ -48,6 +55,8 @@ export function registerIpcHandlers(deps: {
     windowManager,
     updater,
     mcpManager,
+    mitmProxy,
+    caManager,
     sessionsRepo,
     requestsRepo,
     jsHooksRepo,
@@ -209,6 +218,13 @@ export function registerIpcHandlers(deps: {
 
   ipcMain.handle("data:reports", async (_event, sessionId: string) => {
     return reportsRepo.findBySession(sessionId);
+  });
+
+  ipcMain.handle("data:clear", async (_event, sessionId: string) => {
+    requestsRepo.deleteBySession(sessionId);
+    jsHooksRepo.deleteBySession(sessionId);
+    storageSnapshotsRepo.deleteBySession(sessionId);
+    reportsRepo.deleteBySession(sessionId);
   });
 
   // ---- AI Analysis ----
@@ -386,6 +402,110 @@ export function registerIpcHandlers(deps: {
     const { isMCPServerRunning } = await import("./mcp/mcp-server");
     const config = loadMCPServerConfig();
     return { running: isMCPServerRunning(), port: config.port };
+  });
+
+  // ---- MITM Proxy ----
+
+  ipcMain.handle("mitm-proxy:getConfig", async () => {
+    return loadMitmProxyConfig();
+  });
+
+  ipcMain.handle("mitm-proxy:saveConfig", async (_event, config: MitmProxyConfig) => {
+    saveMitmProxyConfig(config);
+    if (config.enabled && !deps.mitmProxy.isRunning()) {
+      await deps.caManager.init();
+      await deps.mitmProxy.start(config.port);
+    } else if (!config.enabled && deps.mitmProxy.isRunning()) {
+      await deps.mitmProxy.stop();
+      // Also disable system proxy if it was enabled
+      if (config.systemProxy) {
+        await SystemProxy.disable();
+        saveMitmProxyConfig({ ...config, systemProxy: false });
+      }
+    }
+  });
+
+  ipcMain.handle("mitm-proxy:status", async () => {
+    const config = loadMitmProxyConfig();
+    return {
+      running: deps.mitmProxy.isRunning(),
+      port: deps.mitmProxy.getPort(),
+      caInitialized: deps.caManager.isInitialized(),
+      caInstalled: config.caInstalled,
+      caCertPath: deps.caManager.isInitialized() ? deps.caManager.getCaCertPath() : null,
+      systemProxyEnabled: config.systemProxy,
+    };
+  });
+
+  ipcMain.handle("mitm-proxy:installCA", async () => {
+    // Ensure CA is generated before trying to install
+    if (!deps.caManager.isInitialized()) {
+      await deps.caManager.init();
+    }
+    const result = await CertInstaller.install(deps.caManager.getCaCertPath());
+    if (result.success) {
+      const config = loadMitmProxyConfig();
+      saveMitmProxyConfig({ ...config, caInstalled: true });
+    }
+    return result;
+  });
+
+  ipcMain.handle("mitm-proxy:uninstallCA", async () => {
+    if (!deps.caManager.isInitialized()) {
+      await deps.caManager.init();
+    }
+    const result = await CertInstaller.uninstall(deps.caManager.getCaCertPath());
+    if (result.success) {
+      const config = loadMitmProxyConfig();
+      saveMitmProxyConfig({ ...config, caInstalled: false });
+    }
+    return result;
+  });
+
+  ipcMain.handle("mitm-proxy:exportCA", async () => {
+    if (!deps.caManager.isInitialized()) {
+      await deps.caManager.init();
+    }
+    const { dialog } = await import("electron");
+    const win = deps.windowManager.getMainWindow();
+    if (!win) return false;
+    const certPath = deps.caManager.getCaCertPath();
+    const { canceled, filePath } = await dialog.showSaveDialog(win, {
+      defaultPath: "anything-analyzer-ca.crt",
+      filters: [
+        { name: "Certificate", extensions: ["crt", "pem"] },
+        { name: "All Files", extensions: ["*"] },
+      ],
+    });
+    if (canceled || !filePath) return false;
+    const { readFileSync, writeFileSync } = await import("fs");
+    writeFileSync(filePath, readFileSync(certPath));
+    return true;
+  });
+
+  ipcMain.handle("mitm-proxy:regenerateCA", async () => {
+    if (deps.mitmProxy.isRunning()) await deps.mitmProxy.stop();
+    await deps.caManager.regenerate();
+    const config = loadMitmProxyConfig();
+    saveMitmProxyConfig({ ...config, caInstalled: false });
+  });
+
+  ipcMain.handle("mitm-proxy:enableSystemProxy", async () => {
+    const config = loadMitmProxyConfig();
+    const result = await SystemProxy.enable(config.port);
+    if (result.success) {
+      saveMitmProxyConfig({ ...config, systemProxy: true });
+    }
+    return result;
+  });
+
+  ipcMain.handle("mitm-proxy:disableSystemProxy", async () => {
+    const result = await SystemProxy.disable();
+    if (result.success) {
+      const config = loadMitmProxyConfig();
+      saveMitmProxyConfig({ ...config, systemProxy: false });
+    }
+    return result;
   });
 }
 

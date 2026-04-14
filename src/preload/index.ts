@@ -50,6 +50,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("data:storage", sessionId),
   getReports: (sessionId: string) =>
     ipcRenderer.invoke("data:reports", sessionId),
+  clearCaptureData: (sessionId: string) =>
+    ipcRenderer.invoke("data:clear", sessionId),
 
   // AI analysis
   startAnalysis: (sessionId: string, purpose?: string, selectedSeqs?: number[]) =>
@@ -109,6 +111,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
   saveMCPServerConfig: (config: unknown) =>
     ipcRenderer.invoke("mcp-server:saveConfig", config),
   getMCPServerStatus: () => ipcRenderer.invoke("mcp-server:status"),
+
+  // MITM Proxy
+  getMitmProxyConfig: () => ipcRenderer.invoke("mitm-proxy:getConfig"),
+  saveMitmProxyConfig: (config: unknown) => ipcRenderer.invoke("mitm-proxy:saveConfig", config),
+  getMitmProxyStatus: () => ipcRenderer.invoke("mitm-proxy:status"),
+  installMitmCA: () => ipcRenderer.invoke("mitm-proxy:installCA"),
+  uninstallMitmCA: () => ipcRenderer.invoke("mitm-proxy:uninstallCA"),
+  exportMitmCA: () => ipcRenderer.invoke("mitm-proxy:exportCA"),
+  regenerateMitmCA: () => ipcRenderer.invoke("mitm-proxy:regenerateCA"),
+  enableMitmSystemProxy: () => ipcRenderer.invoke("mitm-proxy:enableSystemProxy"),
+  disableMitmSystemProxy: () => ipcRenderer.invoke("mitm-proxy:disableSystemProxy"),
 
   // Tab events
   onTabCreated: (callback: (tab: unknown) => void) => {

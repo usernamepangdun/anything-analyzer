@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback } from 'react'
+import React, { useMemo, useCallback, useRef } from 'react'
 import { Table, Tag } from 'antd'
 import type { ColumnsType, TableRowSelection } from 'antd/es/table/interface'
 import type { CapturedRequest } from '@shared/types'
@@ -42,7 +42,32 @@ function extractPath(url: string): string {
   }
 }
 
+// Extract host (domain + port) from a full URL
+function extractHost(url: string): string {
+  try {
+    const parsed = new URL(url)
+    return parsed.host
+  } catch {
+    return url
+  }
+}
+
 const RequestLog: React.FC<RequestLogProps> = ({ requests, selectedId, onSelect, selectedSeqs, onSelectedSeqsChange }) => {
+  // Track open filter dropdown count — hide native browser view while any is open
+  const openFilterCount = useRef(0)
+  const handleFilterDropdownOpenChange = useCallback((open: boolean) => {
+    openFilterCount.current += open ? 1 : -1
+    window.electronAPI.setTargetViewVisible(openFilterCount.current <= 0)
+  }, [])
+  // Collect unique domains from current requests for filter dropdown
+  const domainFilters = useMemo(() => {
+    const hosts = new Set<string>()
+    for (const r of requests) {
+      hosts.add(extractHost(r.url))
+    }
+    return Array.from(hosts).sort().map(h => ({ text: h, value: h }))
+  }, [requests])
+
   const columns: ColumnsType<CapturedRequest> = useMemo(
     () => [
       {
@@ -51,6 +76,23 @@ const RequestLog: React.FC<RequestLogProps> = ({ requests, selectedId, onSelect,
         key: 'sequence',
         width: 60,
         sorter: (a, b) => a.sequence - b.sequence
+      },
+      {
+        title: 'Source',
+        dataIndex: 'source',
+        key: 'source',
+        width: 70,
+        render: (source: string | undefined) =>
+          source === 'proxy'
+            ? <Tag color="green">代理</Tag>
+            : <Tag color="blue">浏览器</Tag>,
+        filters: [
+          { text: '浏览器', value: 'cdp' },
+          { text: '代理', value: 'proxy' },
+        ],
+        onFilter: (value, record) =>
+          (record.source || 'cdp') === (value as string),
+        onFilterDropdownOpenChange: handleFilterDropdownOpenChange,
       },
       {
         title: 'Method',
@@ -67,7 +109,25 @@ const RequestLog: React.FC<RequestLogProps> = ({ requests, selectedId, onSelect,
           value: m
         })),
         onFilter: (value, record) =>
-          record.method.toUpperCase() === (value as string)
+          record.method.toUpperCase() === (value as string),
+        onFilterDropdownOpenChange: handleFilterDropdownOpenChange,
+      },
+      {
+        title: 'Domain',
+        key: 'domain',
+        width: 160,
+        ellipsis: true,
+        render: (_: unknown, record: CapturedRequest) => (
+          <span title={extractHost(record.url)} style={{ fontSize: 12, color: '#8c8c8c' }}>
+            {extractHost(record.url)}
+          </span>
+        ),
+        filters: domainFilters,
+        filterSearch: (input, record) =>
+          (record.value as string).toLowerCase().includes(input.toLowerCase()),
+        onFilter: (value, record) =>
+          extractHost(record.url) === (value as string),
+        onFilterDropdownOpenChange: handleFilterDropdownOpenChange,
       },
       {
         title: 'URL',
@@ -105,7 +165,7 @@ const RequestLog: React.FC<RequestLogProps> = ({ requests, selectedId, onSelect,
         sorter: (a, b) => (a.duration_ms ?? 0) - (b.duration_ms ?? 0)
       }
     ],
-    []
+    [domainFilters]
   )
 
   const handleRow = useCallback(

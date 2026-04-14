@@ -67,13 +67,14 @@ export class RequestsRepo {
     findBySession: Database.Statement
     findById: Database.Statement
     getNextSequence: Database.Statement
+    deleteBySession: Database.Statement
   }
 
   constructor(private db: Database.Database) {
     this.stmts = {
       insert: db.prepare(
-        `INSERT INTO requests (id, session_id, sequence, timestamp, method, url, request_headers, request_body, content_type, initiator)
-         VALUES (@id, @session_id, @sequence, @timestamp, @method, @url, @request_headers, @request_body, @content_type, @initiator)`
+        `INSERT INTO requests (id, session_id, sequence, timestamp, method, url, request_headers, request_body, content_type, initiator, source)
+         VALUES (@id, @session_id, @sequence, @timestamp, @method, @url, @request_headers, @request_body, @content_type, @initiator, @source)`
       ),
       updateResponse: db.prepare(
         `UPDATE requests SET status_code = @status_code, response_headers = @response_headers,
@@ -87,12 +88,13 @@ export class RequestsRepo {
       findById: db.prepare('SELECT * FROM requests WHERE id = ?'),
       getNextSequence: db.prepare(
         'SELECT COALESCE(MAX(sequence), 0) + 1 AS next_seq FROM requests WHERE session_id = ?'
-      )
+      ),
+      deleteBySession: db.prepare('DELETE FROM requests WHERE session_id = ?')
     }
   }
 
-  insert(request: Partial<CapturedRequest>): void {
-    this.stmts.insert.run(request)
+  insert(data: Partial<CapturedRequest> & { source?: string }): void {
+    this.stmts.insert.run({ ...data, source: data.source || 'cdp' })
   }
 
   updateResponse(data: {
@@ -120,6 +122,10 @@ export class RequestsRepo {
     const row = this.stmts.getNextSequence.get(sessionId) as { next_seq: number }
     return row.next_seq
   }
+
+  deleteBySession(sessionId: string): void {
+    this.stmts.deleteBySession.run(sessionId)
+  }
 }
 
 // ============================================================
@@ -130,6 +136,7 @@ export class JsHooksRepo {
   private stmts: {
     insert: Database.Statement
     findBySession: Database.Statement
+    deleteBySession: Database.Statement
   }
 
   constructor(private db: Database.Database) {
@@ -140,7 +147,8 @@ export class JsHooksRepo {
       ),
       findBySession: db.prepare(
         'SELECT * FROM js_hooks WHERE session_id = ? ORDER BY timestamp ASC'
-      )
+      ),
+      deleteBySession: db.prepare('DELETE FROM js_hooks WHERE session_id = ?')
     }
   }
 
@@ -150,6 +158,10 @@ export class JsHooksRepo {
 
   findBySession(sessionId: string): JsHookRecord[] {
     return this.stmts.findBySession.all(sessionId) as JsHookRecord[]
+  }
+
+  deleteBySession(sessionId: string): void {
+    this.stmts.deleteBySession.run(sessionId)
   }
 }
 
@@ -162,6 +174,7 @@ export class StorageSnapshotsRepo {
     insert: Database.Statement
     findBySession: Database.Statement
     findLatest: Database.Statement
+    deleteBySession: Database.Statement
   }
 
   constructor(private db: Database.Database) {
@@ -177,7 +190,8 @@ export class StorageSnapshotsRepo {
         `SELECT * FROM storage_snapshots
          WHERE session_id = ? AND storage_type = ?
          ORDER BY timestamp DESC LIMIT 1`
-      )
+      ),
+      deleteBySession: db.prepare('DELETE FROM storage_snapshots WHERE session_id = ?')
     }
   }
 
@@ -192,6 +206,10 @@ export class StorageSnapshotsRepo {
   findLatest(sessionId: string, storageType: string): StorageSnapshot | undefined {
     return this.stmts.findLatest.get(sessionId, storageType) as StorageSnapshot | undefined
   }
+
+  deleteBySession(sessionId: string): void {
+    this.stmts.deleteBySession.run(sessionId)
+  }
 }
 
 // ============================================================
@@ -203,6 +221,7 @@ export class AnalysisReportsRepo {
     insert: Database.Statement
     findBySession: Database.Statement
     findById: Database.Statement
+    deleteBySession: Database.Statement
   }
 
   constructor(private db: Database.Database) {
@@ -214,7 +233,8 @@ export class AnalysisReportsRepo {
       findBySession: db.prepare(
         'SELECT * FROM analysis_reports WHERE session_id = ? ORDER BY created_at DESC'
       ),
-      findById: db.prepare('SELECT * FROM analysis_reports WHERE id = ?')
+      findById: db.prepare('SELECT * FROM analysis_reports WHERE id = ?'),
+      deleteBySession: db.prepare('DELETE FROM analysis_reports WHERE session_id = ?')
     }
   }
 
@@ -228,5 +248,9 @@ export class AnalysisReportsRepo {
 
   findById(id: string): AnalysisReport | undefined {
     return this.stmts.findById.get(id) as AnalysisReport | undefined
+  }
+
+  deleteBySession(sessionId: string): void {
+    this.stmts.deleteBySession.run(sessionId)
   }
 }

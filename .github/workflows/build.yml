@@ -89,11 +89,17 @@ jobs:
       - name: List artifacts
         run: find artifacts -type f | head -30
 
+      - name: Checkout for release notes
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: RELEASE_NOTES.md
+          sparse-checkout-cone-mode: false
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           draft: false
-          generate_release_notes: true
+          body_path: RELEASE_NOTES.md
           files: |
             artifacts/*.exe
             artifacts/*.dmg

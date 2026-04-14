@@ -23,3 +23,12 @@ Thumbs.db
 
 # Electron userdata (contains LLM API keys)
 userData/
+
+# Spec workflow templates
+.spec-workflow/
+
+# Superpowers generated docs
+docs/superpowers/
+
+# Report copies
+report-*copy*

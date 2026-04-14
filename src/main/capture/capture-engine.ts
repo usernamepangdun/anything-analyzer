@@ -35,24 +35,31 @@ export class CaptureEngine extends EventEmitter {
     statusCode: number; responseHeaders: string;
     responseBody: string | null; contentType: string | null;
     initiator: string | null; durationMs: number | null;
-    isOptions: boolean; isStatic: boolean; isStreaming: boolean; isWebSocket: boolean; truncated: boolean; timestamp: number
+    isOptions: boolean; isStatic: boolean; isStreaming: boolean; isWebSocket: boolean; truncated: boolean; timestamp: number;
+    source?: 'cdp' | 'proxy'
   }): void {
     if (!this.sessionId) return
 
     const sequence = this.requestsRepo.getNextSequence(this.sessionId)
+    // Generate a unique ID per record to avoid UNIQUE constraint conflicts.
+    // The original requestId from CDP/proxy may repeat across sessions or retries.
+    const uniqueId = `${this.sessionId}-${sequence}`
 
     try {
       this.requestsRepo.insert({
-        id: data.requestId, session_id: this.sessionId, sequence,
+        id: uniqueId, session_id: this.sessionId, sequence,
         timestamp: data.timestamp, method: data.method, url: data.url,
         request_headers: data.requestHeaders, request_body: data.requestBody,
-        content_type: data.contentType, initiator: data.initiator
+        content_type: data.contentType, initiator: data.initiator,
+        source: data.source || 'cdp'
       })
-    } catch { /* duplicate */ }
+    } catch (err) {
+      console.warn('[CaptureEngine] Insert failed:', (err as Error).message)
+    }
 
     try {
       this.requestsRepo.updateResponse({
-        id: data.requestId, status_code: data.statusCode,
+        id: uniqueId, status_code: data.statusCode,
         response_headers: data.responseHeaders,
         response_body: data.responseBody,
         content_type: data.contentType, duration_ms: data.durationMs || 0,
@@ -62,13 +69,14 @@ export class CaptureEngine extends EventEmitter {
     } catch { /* ignore */ }
 
     const captured: CapturedRequest = {
-      id: data.requestId, session_id: this.sessionId, sequence,
+      id: uniqueId, session_id: this.sessionId, sequence,
       timestamp: data.timestamp, method: data.method, url: data.url,
       request_headers: data.requestHeaders, request_body: data.requestBody,
       status_code: data.statusCode, response_headers: data.responseHeaders,
       response_body: data.responseBody, content_type: data.contentType,
       initiator: data.initiator, duration_ms: data.durationMs,
-      is_streaming: data.isStreaming, is_websocket: data.isWebSocket
+      is_streaming: data.isStreaming, is_websocket: data.isWebSocket,
+      source: data.source || 'cdp'
     }
     this.sendToRenderer('capture:request', captured)
   }

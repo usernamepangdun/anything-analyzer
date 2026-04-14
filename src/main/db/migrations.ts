@@ -102,6 +102,19 @@ export function runMigrations(db: Database.Database): void {
   // Run additional migrations
   migrateAddStreamingAndWebSocketFlags(db)
   migrateAddFilterTokenColumns(db)
+  migrateAddSourceColumn(db)
+}
+
+/**
+ * Migration 007: Add source column to requests table for MITM proxy support
+ * Safe to call multiple times (handles duplicate column errors)
+ */
+export function migrateAddSourceColumn(db: Database.Database): void {
+  try {
+    db.exec(`ALTER TABLE requests ADD COLUMN source TEXT DEFAULT 'cdp'`);
+  } catch (err) {
+    if (!String(err).includes("duplicate column name")) throw err;
+  }
 }
 
 /**

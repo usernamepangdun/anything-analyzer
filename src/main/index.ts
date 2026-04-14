@@ -16,11 +16,20 @@ import { registerIpcHandlers, loadProxyConfig, applyProxy, loadMCPServerConfig }
 import { Updater } from "./updater";
 import { MCPClientManager } from "./mcp/mcp-manager";
 import { initMCPServer, stopMCPServer } from "./mcp/mcp-server";
+import { CaManager } from "./proxy/ca-manager";
+import { MitmProxyServer } from "./proxy/mitm-proxy-server";
+import { loadMitmProxyConfig, saveMitmProxyConfig } from "./proxy/mitm-proxy-config";
+import { SystemProxy } from "./proxy/system-proxy";
+import { join } from "path";
 
 const windowManager = new WindowManager();
 const mcpManager = new MCPClientManager();
 
-app.whenReady().then(() => {
+// MITM Proxy — initialized once, shared across the app lifetime
+const caManager = new CaManager(join(app.getPath("userData"), "mitm-ca"));
+const mitmProxy = new MitmProxyServer(caManager);
+
+app.whenReady().then(async () => {
   // Initialize database
   const db = getDatabase();
   runMigrations(db);
@@ -83,6 +92,8 @@ app.whenReady().then(() => {
     windowManager,
     updater,
     mcpManager,
+    mitmProxy,
+    caManager,
     sessionsRepo,
     requestsRepo,
     jsHooksRepo,
@@ -102,6 +113,29 @@ app.whenReady().then(() => {
     ).catch((err) => console.error("Failed to start MCP Server:", err));
   }
 
+  // Initialize MITM Proxy
+  const mitmConfig = loadMitmProxyConfig();
+
+  // Wire proxy captured events → CaptureEngine (same data shape as CDP)
+  mitmProxy.on("response-captured", (data) => {
+    captureEngine.handleResponseCaptured({ ...data, source: "proxy" });
+  });
+
+  if (mitmConfig.enabled) {
+    caManager
+      .init()
+      .then(() => mitmProxy.start(mitmConfig.port))
+      .then(() => {
+        console.log("[Main] MITM proxy auto-started on port", mitmConfig.port);
+        if (mitmConfig.systemProxy) {
+          SystemProxy.enable(mitmConfig.port).catch((err) =>
+            console.error("[Main] Failed to enable system proxy:", err),
+          );
+        }
+      })
+      .catch((err) => console.error("[Main] Failed to auto-start MITM proxy:", err));
+  }
+
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       windowManager.createMainWindow();
@@ -119,6 +153,13 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  // Disable system proxy before exiting to avoid leaving the system in a broken state
+  SystemProxy.disable().catch(() => {});
+  const config = loadMitmProxyConfig();
+  if (config.systemProxy) {
+    saveMitmProxyConfig({ ...config, systemProxy: false });
+  }
+  mitmProxy.stop().catch(() => {});
   stopMCPServer().catch(() => {});
   mcpManager.disconnectAll().catch(() => {});
   closeDatabase();

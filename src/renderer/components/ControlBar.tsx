@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Button, Input, Popconfirm, Select, Space, Spin, Tag } from 'antd'
+import { Button, Input, Select, Space, Spin, Tag } from 'antd'
 import {
   PlayCircleOutlined,
   PauseCircleOutlined,
@@ -8,8 +8,6 @@ import {
   LoadingOutlined,
   CheckOutlined,
   CloseOutlined,
-  ExportOutlined,
-  ClearOutlined,
 } from '@ant-design/icons'
 import type { SessionStatus, PromptTemplate } from '../../shared/types'
 
@@ -22,8 +20,6 @@ interface ControlBarProps {
   hasRequests: boolean
   isAnalyzing?: boolean
   selectedSeqCount?: number
-  onExport?: () => void
-  onClearEnv?: () => void
 }
 
 const ControlBar: React.FC<ControlBarProps> = ({
@@ -35,8 +31,6 @@ const ControlBar: React.FC<ControlBarProps> = ({
   hasRequests,
   isAnalyzing = false,
   selectedSeqCount = 0,
-  onExport,
-  onClearEnv,
 }) => {
   const [purposeId, setPurposeId] = useState<string>('auto')
   const [customText, setCustomText] = useState('')
@@ -159,37 +153,8 @@ const ControlBar: React.FC<ControlBarProps> = ({
           </Button>
         </Space>
 
-        {/* Right side: utility actions + status */}
+        {/* Right side: status */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Space size={4}>
-            <Button
-              size="small"
-              icon={<ExportOutlined />}
-              disabled={!(isStopped && hasRequests) || isAnalyzing}
-              onClick={onExport}
-            >
-              导出
-            </Button>
-            <Popconfirm
-              title="清除浏览器环境"
-              description="将清除所有 Cookies、LocalStorage、SessionStorage 和缓存数据，当前登录态会丢失。"
-              onConfirm={onClearEnv}
-              okText="确认清除"
-              okType="danger"
-              cancelText="取消"
-              placement="bottomRight"
-            >
-              <Button
-                size="small"
-                icon={<ClearOutlined />}
-              >
-                清除环境
-              </Button>
-            </Popconfirm>
-          </Space>
-
-          <div style={{ width: 1, height: 20, background: '#404040', margin: '0 4px' }} />
-
           {purposeId === 'custom' && customText.trim() && !customExpanded && (
             <Tag color="blue" style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {customText.trim()}

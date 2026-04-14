@@ -48,7 +48,7 @@ const SessionList: React.FC<SessionListProps> = ({
     try {
       const values = await form.validateFields()
       setCreating(true)
-      await onCreate(values.name, values.targetUrl)
+      await onCreate(values.name, values.targetUrl || '')
       form.resetFields()
       setModalOpen(false)
       window.electronAPI.setTargetViewVisible(true)
@@ -144,15 +144,25 @@ const SessionList: React.FC<SessionListProps> = ({
                         {session.name}
                       </Text>
                     </div>
-                    <Text
-                      type="secondary"
-                      ellipsis
-                      style={{ fontSize: 12, display: 'block', paddingLeft: 14 }}
-                      title={session.target_url}
-                    >
-                      <GlobalOutlined style={{ marginRight: 4 }} />
-                      {session.target_url}
-                    </Text>
+                    {session.target_url ? (
+                      <Text
+                        type="secondary"
+                        ellipsis
+                        style={{ fontSize: 12, display: 'block', paddingLeft: 14 }}
+                        title={session.target_url}
+                      >
+                        <GlobalOutlined style={{ marginRight: 4 }} />
+                        {session.target_url}
+                      </Text>
+                    ) : (
+                      <Text
+                        type="secondary"
+                        style={{ fontSize: 12, display: 'block', paddingLeft: 14, fontStyle: 'italic' }}
+                      >
+                        <GlobalOutlined style={{ marginRight: 4 }} />
+                        仅代理捕获
+                      </Text>
+                    )}
                   </div>
 
                   {/* Hover 时显示删除按钮 */}
@@ -219,12 +229,22 @@ const SessionList: React.FC<SessionListProps> = ({
           <Form.Item
             name="targetUrl"
             label="Target URL"
+            tooltip="留空则仅通过代理捕获流量"
             rules={[
-              { required: true, message: 'Please enter a target URL' },
-              { type: 'url', message: 'Please enter a valid URL' }
+              {
+                validator: (_, value) => {
+                  if (!value || value.trim() === '') return Promise.resolve()
+                  try {
+                    new URL(value)
+                    return Promise.resolve()
+                  } catch {
+                    return Promise.reject(new Error('请输入合法 URL'))
+                  }
+                },
+              },
             ]}
           >
-            <Input placeholder="https://example.com" />
+            <Input placeholder="https://example.com（可选，代理抓包可留空）" />
           </Form.Item>
         </Form>
       </Modal>
