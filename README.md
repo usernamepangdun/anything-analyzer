@@ -1,5 +1,7 @@
 # Anything Analyzer
 
+[简体中文](README.md) | [English](README.en.md)
+
 > **网页、桌面应用、终端命令、Python 脚本、手机 App —— 不管流量从哪来，抓到就能让 AI 自动逆向分析。**
 
 [![Electron](https://img.shields.io/badge/Electron-35-blue)](https://www.electronjs.org/)
