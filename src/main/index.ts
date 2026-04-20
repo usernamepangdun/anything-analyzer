@@ -9,6 +9,7 @@ import {
   AnalysisReportsRepo,
   FingerprintProfilesRepo,
   ChatMessagesRepo,
+  AiRequestLogRepo,
 } from "./db/repositories";
 import { CaptureEngine } from "./capture/capture-engine";
 import { SessionManager } from "./session/session-manager";
@@ -50,6 +51,7 @@ app.whenReady().then(async () => {
   const reportsRepo = new AnalysisReportsRepo(db);
   const chatMessagesRepo = new ChatMessagesRepo(db);
   const fingerprintRepo = new FingerprintProfilesRepo(db);
+  const aiRequestLogRepo = new AiRequestLogRepo(db);
   const profileStore = new ProfileStore(fingerprintRepo);
 
   // Initialize capture engine
@@ -73,6 +75,7 @@ app.whenReady().then(async () => {
     jsHooksRepo,
     storageSnapshotsRepo,
     reportsRepo,
+    aiRequestLogRepo,
   );
 
   // Create main window

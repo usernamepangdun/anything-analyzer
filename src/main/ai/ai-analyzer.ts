@@ -1,11 +1,12 @@
 import { v4 as uuidv4 } from "uuid";
-import type { AnalysisReport, AssembledData, FilteredRequest, LLMProviderConfig, PromptTemplate } from "@shared/types";
+import type { AnalysisReport, AssembledData, FilteredRequest, LLMProviderConfig, PromptTemplate, AiRequestLogData } from "@shared/types";
 import type {
   SessionsRepo,
   RequestsRepo,
   JsHooksRepo,
   StorageSnapshotsRepo,
   AnalysisReportsRepo,
+  AiRequestLogRepo,
 } from "../db/repositories";
 import { DataAssembler } from "./data-assembler";
 import { PromptBuilder } from "./prompt-builder";
@@ -53,6 +54,7 @@ export class AiAnalyzer {
     private jsHooksRepo: JsHooksRepo,
     private storageSnapshotsRepo: StorageSnapshotsRepo,
     private reportsRepo: AnalysisReportsRepo,
+    private aiRequestLogRepo: AiRequestLogRepo,
   ) {}
 
   /**
@@ -60,6 +62,34 @@ export class AiAnalyzer {
    */
   setMCPManager(manager: MCPClientManager): void {
     this.mcpManager = manager;
+  }
+
+  /**
+   * Create a logging callback for LLMRouter that captures context via closure.
+   */
+  private createLogCallback(
+    sessionId: string,
+    reportId: string | null,
+    type: 'analyze' | 'chat' | 'filter',
+    config: LLMProviderConfig,
+  ) {
+    return (data: AiRequestLogData) => {
+      try {
+        this.aiRequestLogRepo.insert({
+          session_id: sessionId,
+          report_id: reportId,
+          type,
+          provider: config.name,
+          model: config.model,
+          ...data,
+          prompt_tokens: 0,
+          completion_tokens: 0,
+          created_at: Date.now(),
+        });
+      } catch (e) {
+        console.warn('[AiRequestLog] Failed to insert log:', e);
+      }
+    };
   }
 
   async analyze(
@@ -125,7 +155,7 @@ export class AiAnalyzer {
           );
 
           const phase1Config: LLMProviderConfig = { ...config, maxTokens: PHASE1_MAX_TOKENS };
-          const phase1Router = new LLMRouter(phase1Config);
+          const phase1Router = new LLMRouter(phase1Config, this.createLogCallback(sessionId, null, 'filter', phase1Config));
           const phase1Messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
             { role: "system", content: filterPrompt.system },
             { role: "user", content: filterPrompt.user },
@@ -164,7 +194,7 @@ export class AiAnalyzer {
     );
 
     // Call LLM with retry
-    const router = new LLMRouter(config);
+    const router = new LLMRouter(config, this.createLogCallback(sessionId, null, 'analyze', config));
     let content = "";
     let promptTokens = 0;
     let completionTokens = 0;
@@ -304,6 +334,7 @@ export class AiAnalyzer {
     history: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
     userMessage: string,
     onProgress?: (chunk: string) => void,
+    reportId?: string,
   ): Promise<string> {
     // Build messages array: existing history + new user message
     const messages = [
@@ -311,7 +342,7 @@ export class AiAnalyzer {
       { role: 'user' as const, content: userMessage },
     ]
 
-    const router = new LLMRouter(config)
+    const router = new LLMRouter(config, this.createLogCallback(sessionId, reportId ?? null, 'chat', config))
 
     // Build request lookup for builtin tool
     const assembler = new DataAssembler(
