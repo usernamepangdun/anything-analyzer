@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Button, Input, Modal, Empty } from '../ui'
 import { IconPlus, IconDelete } from '../ui/Icons'
 import { useLocale } from '../i18n'
@@ -57,6 +57,11 @@ const SessionList: React.FC<SessionListProps> = ({
   const [formUrl, setFormUrl] = useState('')
   const [nameError, setNameError] = useState('')
   const [urlError, setUrlError] = useState('')
+  const [appVersion, setAppVersion] = useState('')
+
+  useEffect(() => {
+    window.electronAPI.getAppVersion().then(v => setAppVersion(v))
+  }, [])
 
   const openModal = () => {
     setModalOpen(true)
@@ -196,7 +201,7 @@ const SessionList: React.FC<SessionListProps> = ({
       {/* Bottom: Settings + Version */}
       <div className={styles.sidebarBottom}>
         <div className={styles.bottomBtn} onClick={onOpenSettings}>⚙ {t('settings.title')}</div>
-        <div className={styles.versionText}>v3.2.0</div>
+        <div className={styles.versionText}>v{appVersion}</div>
       </div>
 
       {/* Create session modal */}
